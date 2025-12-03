@@ -3,91 +3,242 @@
 	<head>
 		<meta charset="utf-8" />
 		<meta name="viewport" content="width=device-width,initial-scale=1" />
-		<title>语音识别</title>
- 
+		<title>FunASR 语音识别控制台</title>
+		<style>
+			:root {
+				--bg: linear-gradient(180deg, #f6f8fc 0%, #f0f2f8 100%);
+				--card: #ffffff;
+				--line: #e4e8f0;
+				--text: #0f172a;
+				--muted: #65718a;
+				--accent: #0fb49b;
+				--shadow: 0 18px 35px rgba(15, 23, 42, 0.08);
+			}
+			* { box-sizing: border-box; }
+			body {
+				margin: 0;
+				min-height: 100vh;
+				background: var(--bg);
+				color: var(--text);
+				font-family: "Manrope", "Avenir Next", "SF Pro Display", "PingFang SC", sans-serif;
+				padding: 28px 22px 48px;
+			}
+			.page { max-width: 1200px; margin: 0 auto; }
+			header {
+				display: flex;
+				justify-content: space-between;
+				align-items: center;
+				gap: 16px;
+				margin-bottom: 22px;
+			}
+			.title-block h1 {
+				margin: 0 0 6px;
+				font-size: 28px;
+				letter-spacing: -0.02em;
+			}
+			.title-block p {
+				margin: 0;
+				color: var(--muted);
+				font-size: 15px;
+			}
+			.status-chip {
+				display: inline-flex;
+				align-items: center;
+				gap: 8px;
+				padding: 10px 12px;
+				border-radius: 12px;
+				background: rgba(15, 180, 155, 0.08);
+				color: var(--accent);
+				font-weight: 700;
+				font-size: 13px;
+				border: 1px solid rgba(15, 180, 155, 0.2);
+				min-width: 140px;
+				justify-content: center;
+			}
+			.layout {
+				display: grid;
+				grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr);
+				gap: 16px;
+				align-items: start;
+			}
+			.panel {
+				background: var(--card);
+				border: 1px solid var(--line);
+				border-radius: 16px;
+				padding: 16px;
+				box-shadow: var(--shadow);
+			}
+			.panel h2 {
+				margin: 0 0 10px;
+				font-size: 18px;
+				letter-spacing: -0.01em;
+			}
+			.section {
+				margin-top: 12px;
+				padding-top: 12px;
+				border-top: 1px solid var(--line);
+			}
+			label {
+				display: block;
+				color: var(--muted);
+				font-size: 14px;
+				margin-bottom: 6px;
+			}
+			input[type="text"], textarea, input[type="file"] {
+				width: 100%;
+				background: #f7f9fc;
+				border: 1px solid var(--line);
+				border-radius: 12px;
+				padding: 11px 12px;
+				color: var(--text);
+				font-size: 14px;
+				outline: none;
+				transition: border 0.15s ease, box-shadow 0.15s ease;
+			}
+			input[type="text"]:focus, textarea:focus {
+				border-color: var(--accent);
+				box-shadow: 0 0 0 3px rgba(15, 180, 155, 0.14);
+			}
+			textarea { resize: vertical; }
+			.radio-group { display: flex; flex-wrap: wrap; gap: 10px; }
+			.radio-pill {
+				display: inline-flex;
+				align-items: center;
+				gap: 7px;
+				padding: 8px 10px;
+				border-radius: 10px;
+				border: 1px solid var(--line);
+				background: #f9fbff;
+				font-size: 14px;
+				cursor: pointer;
+			}
+			.subdued {
+				color: var(--muted);
+				font-size: 13px;
+				line-height: 1.5;
+			}
+			.link {
+				display: inline-flex;
+				align-items: center;
+				gap: 6px;
+				color: var(--accent);
+				font-weight: 600;
+				text-decoration: none;
+				margin-top: 6px;
+			}
+			.controls {
+				display: flex;
+				flex-wrap: wrap;
+				gap: 10px;
+				margin-top: 12px;
+			}
+			button {
+				border: none;
+				border-radius: 10px;
+				padding: 10px 14px;
+				color: #ffffff;
+				font-weight: 700;
+				font-size: 14px;
+				cursor: pointer;
+				background: linear-gradient(135deg, #0fb49b, #13c9aa);
+				box-shadow: 0 10px 20px rgba(15, 180, 155, 0.25);
+				transition: transform 0.15s ease, box-shadow 0.15s ease;
+			}
+			button:disabled { opacity: 0.55; cursor: not-allowed; box-shadow: none; }
+			button:not(:disabled):hover {
+				transform: translateY(-1px);
+				box-shadow: 0 12px 24px rgba(15, 180, 155, 0.3);
+			}
+			audio { width: 100%; margin-top: 10px; }
+			.output-area { min-height: 360px; }
+			@media (max-width: 960px) {
+				.layout { grid-template-columns: 1fr; }
+				header { flex-direction: column; align-items: flex-start; }
+			}
+		</style>
 	</head>
-	<body style="margin-left: 3%">
+	<body>
 		<script src="recorder-core.js" charset="UTF-8"></script>
 		<script src="wav.js" charset="UTF-8"></script>
 		<script src="pcm.js" charset="UTF-8"></script>
 
-		 
-
-        <h1>FunASR Demo</h1>
-						<h3>这里是FunASR开源项目体验demo，集成了VAD、ASR与标点等工业级别的模型，支持长音频离线文件转写，实时语音识别等，开源项目地址：https://github.com/alibaba-damo-academy/FunASR</h3>
-
-		<div class="div_class_topArea">
-
-			<div class="div_class_recordControl">
-				asr服务器地址(必填):
-				<br>
-				<input id="wssip" type="text" onchange="addresschange()" style=" width: 100%;height:100%" value="wss://127.0.0.1:10095/"/>
-				<br>
-				<a id="wsslink"  href="#" onclick="window.open('https://127.0.0.1:10095/', '_blank')"><div id="info_wslink">点此处手工授权wss://127.0.0.1:10095/</div></a>
-				<br>
-			<br>  
-			<div  style="border:2px solid #ccc;">
-				选择录音模式:<br/>
-    
-        <label><input name="recoder_mode" onclick="on_recoder_mode_change()" type="radio" value="mic" checked="true"/>麦克风 </label>&nbsp;&nbsp;
-        <label><input name="recoder_mode" onclick="on_recoder_mode_change()" type="radio" value="file" />文件 </label> 
-
+		<div class="page">
+			<header>
+				<div class="title-block">
+					<h1>FunASR 语音识别控制台</h1>
+					<p>专注识别结果，轻量配置入口，实时 / 离线一键切换。</p>
 				</div>
-				
-				<br>
-				 <div id="mic_mode_div" style="border:2px solid #ccc;display:block;">
-				选择asr模型模式:<br/>
-    
-      <label><input name="asr_mode" type="radio" value="2pass" checked="true"/>2pass </label>&nbsp;&nbsp;
-      <label><input name="asr_mode" type="radio" value="online" />online </label>&nbsp;&nbsp;
-      <label><input name="asr_mode" type="radio" value="offline" />offline </label>
+				<div class="status-chip" id="info_div">请点击开始</div>
+			</header>
 
-				</div>
-				
-				<div id="rec_mode_div" style="border:2px solid #ccc;display:none;">
-		 
-    
-		          <input type="file" id="upfile">
-
-				</div>
-				<br>
-				<div id="use_itn_div" style="border:2px solid #ccc;display:block;">
-					逆文本标准化(ITN):<br/>
-					<label><input name="use_itn" type="radio" value="false" checked="true"/>否 </label>&nbsp;&nbsp;
-					<label><input name="use_itn" type="radio" value="true" />是 </label>
-			   </div>
-			   <br>
-		        <div  style="border:2px solid #ccc;">
-					热词设置(一行一个关键字，空格隔开权重,如"阿里巴巴 20")：
-					<br>
-	
-	
-					<textarea rows="3"  id="varHot"  style=" width: 100%;height:100%" >阿里巴巴 20&#13;hello world 40</textarea>
-					<br>
-	
+			<div class="layout">
+				<section class="panel">
+					<h2>识别输出</h2>
+					<label for="varArea" class="subdued">实时结果，主要工作区</label>
+					<textarea rows="16" id="varArea" readonly="true" class="output-area"></textarea>
+					<div class="controls">
+						<button id="btnConnect">连接</button>
+						<button id="btnStart">开始</button>
+						<button id="btnStop">停止</button>
 					</div>
-				语音识别结果显示：
-				<br>
-				
-				<textarea rows="10"  id="varArea" readonly="true" style=" width: 100%;height:100%" ></textarea>
-				<br>
-                <div id="info_div">请点击开始</div>
-				<div class="div_class_buttons">
-					<button id="btnConnect">连接</button>
-					<button id="btnStart">开始</button>
-					<button id="btnStop">停止</button>
- 
+					<audio id="audio_record" type="audio/wav" controls></audio>
+				</section>
+
+				<div class="panel">
+					<h2>配置</h2>
+					<label for="wssip">ASR 服务器地址</label>
+					<input id="wssip" type="text" onchange="addresschange()" value="wss://127.0.0.1:10095/" />
+					<a id="wsslink" class="link" href="#" onclick="window.open('https://127.0.0.1:10095/', '_blank')">
+						<div id="info_wslink">点此处手工授权 wss://127.0.0.1:10095/</div>
+					</a>
+
+					<div class="section">
+						<label>录音来源</label>
+						<div class="radio-group">
+							<label class="radio-pill"><input name="recoder_mode" onclick="on_recoder_mode_change()" type="radio" value="mic" checked="true" />麦克风</label>
+							<label class="radio-pill"><input name="recoder_mode" onclick="on_recoder_mode_change()" type="radio" value="file" />文件</label>
+						</div>
+					</div>
+
+					<div id="mic_mode_div" class="section" style="display: block;">
+						<label>ASR 模型模式</label>
+						<div class="radio-group">
+							<label class="radio-pill"><input name="asr_mode" type="radio" value="2pass" checked="true" />2pass</label>
+							<label class="radio-pill"><input name="asr_mode" type="radio" value="online" />online</label>
+							<label class="radio-pill"><input name="asr_mode" type="radio" value="offline" />offline</label>
+						</div>
+					</div>
+
+					<div id="rec_mode_div" class="section" style="display: none;">
+						<label for="upfile">选择音频文件</label>
+						<input type="file" id="upfile" />
+						<div class="subdued">支持 WAV/PCM，上传后点击“连接”启动识别。</div>
+					</div>
+
+					<div id="use_itn_div" class="section" style="display: block;">
+						<label>逆文本标准化 (ITN)</label>
+						<div class="radio-group">
+							<label class="radio-pill"><input name="use_itn" type="radio" value="false" checked="true" />否</label>
+							<label class="radio-pill"><input name="use_itn" type="radio" value="true" />是</label>
+						</div>
+					</div>
+
+					<div class="section">
+						<label for="chunk_size">chunk_size（流式 latency 配置）</label>
+						<input id="chunk_size" type="text" value="5,10,5" />
+						<div class="subdued">格式: 回看, 中心, 后看。例如 5,10,5 代表 600ms 音频（回看 300ms，后看 300ms）。</div>
+					</div>
+
+					<div class="section">
+						<label for="varHot">热词设置</label>
+						<textarea rows="4" id="varHot">阿里巴巴 20&#13;hello world 40</textarea>
+						<div class="subdued">一行一个关键字，空格后跟权重。</div>
+					</div>
 				</div>
-                
-				<audio id="audio_record" type="audio/wav" controls style="margin-top: 12px; width: 100%;"></audio>
 			</div>
 		</div>
 
- 		<script src="wsconnecter.js" charset="utf-8"></script>
+		<script src="wsconnecter.js" charset="utf-8"></script>
 		<script src="main.js" charset="utf-8"></script>
-		
-
- 
-				
 	</body>
 </html>

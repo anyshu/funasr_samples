@@ -362,8 +362,9 @@ function getJsonMessage( jsonMsg ) {
 		rec_text=rec_text+rectxt; //.replace(/ +/g,"");
 	}
 	var varArea=document.getElementById('varArea');
-	
+
 	varArea.value=rec_text;
+	varArea.scrollTop=varArea.scrollHeight;
 	console.log( "offline_text: " + asrmodel+","+offline_text);
 	console.log( "rec_text: " + rec_text);
 	if (isfilemode==true && is_final==true){
@@ -462,7 +463,7 @@ function start() {
 
  
 function stop() {
-		var chunk_size = new Array( 5, 10, 5 );
+		var chunk_size = getChunkSize();
 		var request = {
 			"chunk_size": chunk_size,
 			"wav_name":  "h5",
@@ -573,4 +574,15 @@ function getUseITN() {
 		}
 	}
 	return false;
+}
+
+function getChunkSize() {
+	var obj = document.getElementById("chunk_size");
+	if (obj && obj.value) {
+		var parts = obj.value.split(",");
+		if (parts.length === 3) {
+			return [parseInt(parts[0]), parseInt(parts[1]), parseInt(parts[2])];
+		}
+	}
+	return [5, 10, 5]; // 默认值
 }

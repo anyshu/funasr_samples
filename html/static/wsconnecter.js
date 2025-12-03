@@ -65,15 +65,15 @@ function WebSocketConnectMethod( config ) { //定义socket连接方法类
 	// SOCEKT连接中的消息与状态响应
 	function onOpen( e ) {
 		// 发送json
-		var chunk_size = new Array( 3, 5, 3 );
+		var chunk_size = getChunkSize();
 		var request = {
 			"chunk_size": chunk_size,
 			"wav_name":  "h5",
 			"is_speaking":  true,
-			"chunk_interval":5,
+			"chunk_interval":10,
 			"itn":getUseITN(),
 			"mode":getAsrMode(),
-			
+
 		};
 		if(isfilemode)
 		{

@@ -37,6 +37,7 @@ var awsslink= document.getElementById('wsslink');
  
 var rec_text="";  // for online rec asr result
 var offline_text=""; // for offline rec asr result
+var pending_block=""; // 待合并的 block（用于跨消息合并非结束标点开头的内容）
 var info_div = document.getElementById('info_div');
 
 var upfile = document.getElementById('upfile');
@@ -307,6 +308,17 @@ function getAsrMode(){
 		   return item;
 }
 		   
+function formatTimestamp(ms) {
+	// 格式化时间戳为 [MM:SS:ms] 格式
+	var totalSeconds = Math.floor(ms / 1000);
+	var minutes = Math.floor(totalSeconds / 60);
+	var seconds = totalSeconds % 60;
+	var milliseconds = ms % 1000;
+	return "[" + String(minutes).padStart(2, '0') + ":" +
+	       String(seconds).padStart(2, '0') + ":" +
+	       String(milliseconds).padStart(3, '0') + "]";
+}
+
 function handleWithTimestamp(tmptext,tmptime)
 {
 	console.log( "tmptext: " + tmptext);
@@ -315,37 +327,147 @@ function handleWithTimestamp(tmptext,tmptime)
 	{
 		return tmptext;
 	}
-	tmptext=tmptext.replace(/。|？|，|、|\?|\.|\ /g, ","); // in case there are a lot of "。"
-	var words=tmptext.split(",");  // split to chinese sentence or english words
-	var jsontime=JSON.parse(tmptime); //JSON.parse(tmptime.replace(/\]\]\[\[/g, "],[")); // in case there are a lot segments by VAD
-	var char_index=0; // index for timestamp
-	var text_withtime="";
-	for(var i=0;i<words.length;i++)
-	{   
-	if(words[i]=="undefined"  || words[i].length<=0)
-	{
-		continue;
-	}
-    console.log("words===",words[i]);
-	console.log( "words: " + words[i]+",time="+jsontime[char_index][0]/1000);
-	if (/^[a-zA-Z]+$/.test(words[i]))
-	{   // if it is english
-		text_withtime=text_withtime+jsontime[char_index][0]/1000+":"+words[i]+"\n";
-		char_index=char_index+1;  //for english, timestamp unit is about a word
-	}
-	else{
-        // if it is chinese
-		text_withtime=text_withtime+jsontime[char_index][0]/1000+":"+words[i]+"\n";
-		char_index=char_index+words[i].length; //for chinese, timestamp unit is about a char
-	}
-	}
-	return text_withtime;
-	
 
+	var jsontime=JSON.parse(tmptime);
+
+	// 非结束标点符号（中英文）
+	var nonEndingPunc = /^[，、：,:\s]/;
+	// 结束标点符号（中英文）
+	var endingPunc = /[。？！.?!]/;
+	// 所有标点符号
+	var allPunc = /[，、：。？！,:.?!\s]/g;
+
+	var blocks = [];
+	var currentBlock = "";
+	var currentStartIndex = 0;
+
+	// 遍历文本，按结束标点符号分割成 block
+	for (var i = 0; i < tmptext.length; i++) {
+		var char = tmptext[i];
+		currentBlock += char;
+
+		if (endingPunc.test(char)) {
+			// 遇到结束标点，保存当前 block
+			blocks.push({
+				text: currentBlock,
+				startIndex: currentStartIndex
+			});
+			currentBlock = "";
+			currentStartIndex = i + 1;
+		}
+	}
+
+	// 处理最后一个没有结束标点的 block
+	if (currentBlock.length > 0) {
+		blocks.push({
+			text: currentBlock,
+			startIndex: currentStartIndex
+		});
+	}
+
+	// 合并以非结束标点开头的 block 到前一个 block
+	var mergedBlocks = [];
+	for (var i = 0; i < blocks.length; i++) {
+		var block = blocks[i];
+		if (mergedBlocks.length > 0 && nonEndingPunc.test(block.text.charAt(0))) {
+			// 合并到前一个 block
+			mergedBlocks[mergedBlocks.length - 1].text += block.text;
+		} else {
+			mergedBlocks.push({
+				text: block.text,
+				startIndex: block.startIndex
+			});
+		}
+	}
+
+	// 生成带时间戳的输出
+	var text_withtime = "";
+
+	// 首先处理 pending_block 与当前消息的合并
+	if (pending_block.length > 0) {
+		if (mergedBlocks.length > 0) {
+			var firstBlock = mergedBlocks[0];
+			var firstBlockText = firstBlock.text;
+			// 检查第一个 block 是否只有结束标点（如 "。"）
+			var isOnlyEndingPunc = firstBlockText.replace(/[。？！.?!]/g, "").length === 0 && endingPunc.test(firstBlockText);
+
+			if (isOnlyEndingPunc) {
+				// 第一个 block 只是结束标点，追加到 pending_block 并换行
+				text_withtime += firstBlockText.trim() + "\n";
+				pending_block = "";
+				// 从第二个 block 开始处理
+				mergedBlocks = mergedBlocks.slice(1);
+			} else if (nonEndingPunc.test(firstBlockText.charAt(0))) {
+				// 第一个 block 以非结束标点开头，合并到 pending_block
+				var isLastBlock = (mergedBlocks.length === 1);
+				var endsWithEndingPunc = endingPunc.test(firstBlockText.charAt(firstBlockText.length - 1));
+
+				text_withtime += firstBlockText;
+				pending_block = "";
+
+				if (isLastBlock && !endsWithEndingPunc) {
+					// 不换行，继续等待
+				} else {
+					text_withtime += "\n";
+				}
+				// 从第二个 block 开始处理
+				mergedBlocks = mergedBlocks.slice(1);
+			} else {
+				// 第一个 block 不以非结束标点开头，pending_block 独立成行
+				text_withtime += "\n";
+				pending_block = "";
+			}
+		} else {
+			// 没有新 block，保持 pending_block
+		}
+	}
+
+	for (var i = 0; i < mergedBlocks.length; i++) {
+		var block = mergedBlocks[i];
+		var blockText = block.text;
+		var isLastBlock = (i === mergedBlocks.length - 1);
+		var endsWithEndingPunc = endingPunc.test(blockText.charAt(blockText.length - 1));
+
+		// 跳过空 block 或只有标点的 block
+		if (blockText.replace(/[，、：。？！,:.?!\s]/g, "").length <= 0) {
+			continue;
+		}
+
+		// 找到第一个非标点字符的索引作为时间戳
+		var firstCharIndex = block.startIndex;
+		for (var j = 0; j < blockText.length; j++) {
+			if (!/[，、：。？！,:.?!\s]/.test(blockText[j])) {
+				firstCharIndex = block.startIndex + j;
+				break;
+			}
+		}
+
+		// 获取时间戳
+		var line = "";
+		if (firstCharIndex < jsontime.length) {
+			var timestamp = jsontime[firstCharIndex][0];
+			line = formatTimestamp(timestamp) + " " + blockText.trim();
+		} else {
+			line = blockText.trim();
+		}
+
+		// 如果是最后一个 block 且不以结束标点结尾，保存到 pending_block
+		if (isLastBlock && !endsWithEndingPunc) {
+			pending_block = line;
+			text_withtime += line;  // 先显示，但不换行
+		} else {
+			text_withtime += line + "\n";
+			if (isLastBlock) {
+				pending_block = "";  // 清空
+			}
+		}
+	}
+
+	return text_withtime;
 }
 // 语音识别结果; 对jsonMsg数据解析,将识别结果附加到编辑框中
 function getJsonMessage( jsonMsg ) {
-	//console.log(jsonMsg);
+	console.log(jsonMsg);
 	console.log( "message: " + JSON.parse(jsonMsg.data)['text'] );
 	var rectxt=""+JSON.parse(jsonMsg.data)['text'];
 	var asrmodel=JSON.parse(jsonMsg.data)['mode'];
@@ -532,13 +654,14 @@ function stop() {
 }
 
 function clear() {
- 
+
     var varArea=document.getElementById('varArea');
- 
+
 	varArea.value="";
     rec_text="";
 	offline_text="";
- 
+	pending_block="";
+
 }
 
  

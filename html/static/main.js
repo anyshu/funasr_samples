@@ -53,7 +53,7 @@ var file_data_array;  // array to save file data
 var totalsend=0;
 
 
-document.getElementById('wssip').value=document.getElementById('wssip').value||defaultWssAddress;
+document.getElementById('wssip').value=defaultWssAddress;
 addresschange();
 function addresschange()
 {   

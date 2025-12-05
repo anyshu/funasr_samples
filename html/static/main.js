@@ -34,6 +34,7 @@ btnConnect.onclick = start;
 
 var awsslink= document.getElementById('wsslink');
 
+const defaultWssAddress="wss://xllm.zen5tech.com/myasr/";
  
 var rec_text="";  // for online rec asr result
 var offline_text=""; // for offline rec asr result
@@ -52,23 +53,19 @@ var file_data_array;  // array to save file data
 var totalsend=0;
 
 
-var now_ipaddress=window.location.href;
-now_ipaddress=now_ipaddress.replace("https://","wss://");
-now_ipaddress=now_ipaddress.replace("static/index.html","");
-var localport=window.location.port;
-now_ipaddress=now_ipaddress.replace(localport,"10095");
-document.getElementById('wssip').value=now_ipaddress;
+document.getElementById('wssip').value=document.getElementById('wssip').value||defaultWssAddress;
 addresschange();
 function addresschange()
 {   
 	
-    var Uri = document.getElementById('wssip').value; 
-	document.getElementById('info_wslink').innerHTML="点此处手工授权（IOS手机）";
-	Uri=Uri.replace(/wss/g,"https");
-	console.log("addresschange uri=",Uri);
+    var Uri = document.getElementById('wssip').value||defaultWssAddress; 
+	document.getElementById('wssip').value=Uri;
+	document.getElementById('info_wslink').innerHTML="点此处手工授权 "+Uri;
+	const httpsUri=Uri.replace(/^wss/,"https");
+	console.log("addresschange uri=",httpsUri);
 	
 	awsslink.onclick=function(){
-		window.open(Uri, '_blank');
+		window.open(httpsUri, '_blank');
 		}
 	
 }
@@ -323,6 +320,8 @@ function handleWithTimestamp(tmptext,tmptime)
 {
 	console.log( "tmptext: " + tmptext);
 	console.log( "tmptime: " + tmptime);
+	console.log( "pending_block before: " + pending_block);
+
     if(tmptime==null || tmptime=="undefined" || tmptext.length<=0)
 	{
 		return tmptext;
@@ -334,8 +333,65 @@ function handleWithTimestamp(tmptext,tmptime)
 	var nonEndingPunc = /^[，、：,:\s]/;
 	// 结束标点符号（中英文）
 	var endingPunc = /[。？！.?!]/;
-	// 所有标点符号
-	var allPunc = /[，、：。？！,:.?!\s]/g;
+
+	// 检查整个文本是否以非结束标点开头
+	var textStartsWithNonEndingPunc = nonEndingPunc.test(tmptext.charAt(0));
+
+	// 如果有 pending_block 且当前文本以非结束标点开头，直接合并
+	if (pending_block.length > 0 && textStartsWithNonEndingPunc) {
+		// 只返回新增的文本（保留标点符号），不重复返回 pending_block
+		// 检查合并后是否以结束标点结尾
+		var endsWithEndingPunc = endingPunc.test(tmptext.charAt(tmptext.length - 1));
+
+		if (endsWithEndingPunc) {
+			pending_block = "";
+			console.log( "pending_block after merge+end: " + pending_block);
+			return tmptext + "\n";  // 只返回新增部分 + 换行
+		} else {
+			pending_block = pending_block + tmptext;  // 更新 pending_block
+			console.log( "pending_block after merge+continue: " + pending_block);
+			return tmptext;  // 只返回新增部分，不换行
+		}
+	}
+
+	// 如果有 pending_block 但当前文本不以非结束标点开头
+	if (pending_block.length > 0 && !textStartsWithNonEndingPunc) {
+		// 检查当前文本是否以结束标点开头（如 "。"）
+		if (endingPunc.test(tmptext.charAt(0))) {
+			// 将结束标点追加到 pending_block，然后处理剩余文本
+			var endPuncMatch = tmptext.match(/^[。？！.?!]+/);
+			var endPuncStr = endPuncMatch ? endPuncMatch[0] : tmptext.charAt(0);
+			var remainingText = tmptext.substring(endPuncStr.length);
+
+			var result = endPuncStr + "\n";  // 只返回结束标点 + 换行
+			pending_block = "";
+
+			// 处理剩余文本
+			if (remainingText.length > 0) {
+				result += handleWithTimestamp(remainingText, JSON.stringify(jsontime.slice(endPuncStr.length)));
+			}
+			console.log( "pending_block after endpunc: " + pending_block);
+			return result;
+		} else {
+			// pending_block 独立成行
+			var result = "\n";  // 只返回换行，pending_block 内容已经显示过了
+			pending_block = "";
+			// 继续处理当前文本
+			result += handleWithTimestampInner(tmptext, jsontime);
+			console.log( "pending_block after independent: " + pending_block);
+			return result;
+		}
+	}
+
+	// 没有 pending_block，正常处理
+	return handleWithTimestampInner(tmptext, jsontime);
+}
+
+function handleWithTimestampInner(tmptext, jsontime) {
+	// 非结束标点符号（中英文）
+	var nonEndingPunc = /^[，、：,:\s]/;
+	// 结束标点符号（中英文）
+	var endingPunc = /[。？！.?!]/;
 
 	var blocks = [];
 	var currentBlock = "";
@@ -383,45 +439,6 @@ function handleWithTimestamp(tmptext,tmptime)
 	// 生成带时间戳的输出
 	var text_withtime = "";
 
-	// 首先处理 pending_block 与当前消息的合并
-	if (pending_block.length > 0) {
-		if (mergedBlocks.length > 0) {
-			var firstBlock = mergedBlocks[0];
-			var firstBlockText = firstBlock.text;
-			// 检查第一个 block 是否只有结束标点（如 "。"）
-			var isOnlyEndingPunc = firstBlockText.replace(/[。？！.?!]/g, "").length === 0 && endingPunc.test(firstBlockText);
-
-			if (isOnlyEndingPunc) {
-				// 第一个 block 只是结束标点，追加到 pending_block 并换行
-				text_withtime += firstBlockText.trim() + "\n";
-				pending_block = "";
-				// 从第二个 block 开始处理
-				mergedBlocks = mergedBlocks.slice(1);
-			} else if (nonEndingPunc.test(firstBlockText.charAt(0))) {
-				// 第一个 block 以非结束标点开头，合并到 pending_block
-				var isLastBlock = (mergedBlocks.length === 1);
-				var endsWithEndingPunc = endingPunc.test(firstBlockText.charAt(firstBlockText.length - 1));
-
-				text_withtime += firstBlockText;
-				pending_block = "";
-
-				if (isLastBlock && !endsWithEndingPunc) {
-					// 不换行，继续等待
-				} else {
-					text_withtime += "\n";
-				}
-				// 从第二个 block 开始处理
-				mergedBlocks = mergedBlocks.slice(1);
-			} else {
-				// 第一个 block 不以非结束标点开头，pending_block 独立成行
-				text_withtime += "\n";
-				pending_block = "";
-			}
-		} else {
-			// 没有新 block，保持 pending_block
-		}
-	}
-
 	for (var i = 0; i < mergedBlocks.length; i++) {
 		var block = mergedBlocks[i];
 		var blockText = block.text;
@@ -463,6 +480,7 @@ function handleWithTimestamp(tmptext,tmptime)
 		}
 	}
 
+	console.log( "pending_block after inner: " + pending_block);
 	return text_withtime;
 }
 // 语音识别结果; 对jsonMsg数据解析,将识别结果附加到编辑框中
@@ -487,8 +505,8 @@ function getJsonMessage( jsonMsg ) {
 
 	varArea.value=rec_text;
 	varArea.scrollTop=varArea.scrollHeight;
-	console.log( "offline_text: " + asrmodel+","+offline_text);
-	console.log( "rec_text: " + rec_text);
+	// console.log( "offline_text: " + asrmodel+","+offline_text);
+	// console.log( "rec_text: " + rec_text);
 	if (isfilemode==true && is_final==true){
 		console.log("call stop ws!");
 		play_file();
